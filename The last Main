@@ -1,0 +1,152 @@
+import logging
+import json
+import random
+
+app = Flask(__name__)
+
+logging.basicConfig(level=logging.INFO, filename='app.log',
+                    format='%(asctime)s %(levelname)s %(name)s %(message)s')
+
+flag = ''
+correct = 0
+incorrect = 0
+'''
+cities = {
+    'байкал': [
+        '965417/06bac1a2fe82534719a3'
+    ],
+    'эйфелева башня': [
+        '1540737/64f971e87eb7bdedf64b'
+    ],
+    'лондон': [
+        '1652229/fec4851070229b2de54d'
+    ],
+    'австралия': [
+        '1030494/359db7d62f53e35427ef'
+    ],
+    'шри-ланка': [
+        '1030494/ba0685314647988bd73c'
+    ],
+    'ньюфаундленд': [
+        '213044/a691bd440da73ed9fe29'
+    ],
+    'сокотра': [
+        '997614/955fa41666a6bf4de097'
+    ],
+    'филиппины': [
+        '1656841/54df8f269e2a0630fb8b'
+    ],
+    'япония': [
+        '1656841/78f66a034b8c05cd15c7'
+    ],
+    'верхнее': [
+        '965417/da7226573c1687216049'
+    ],
+    'виктория': [
+        '1652229/1efbc0c4a1401bc8e6aa'
+    ],
+    'шпицберген': [
+        '1540737/d583604f484d02cd9fc6'
+    ],
+    'крым': [
+        '1652229/499a2798364f2dbd9f8c'
+    ]
+}
+'''
+cities = {
+    'лондон': [
+        '1540737/daa6e420d33102bf6947'
+    ],
+    'нью-йорк': [
+        '1652229/728d5c86707054d4745f'
+    ],
+    'париж': [
+        '1652229/f77136c2364eb90a3ea8'
+    ]
+}
+
+sessionStorage = {}
+
+@app.route('/post', methods=['POST'])
+def main():
+    logging.info('Request: %r', request.json)
+    response = {
+        'session': request.json['session'],
+        'version': request.json['version'],
+        'response': {
+            'end_session': False
+        }
+    }
+    handle_dialog(response, request.json)
+    logging.info('Request: %r', response)
+    return json.dumps(response)
+
+def handle_dialog(res, req):
+    global cities
+    global flag
+    global correct
+    global incorrect
+    user_id = req['session']['user_id']
+    
+    if req['session']['new']:
+        res['response']['text'] = 'Привет! А как тебя зовут ?'
+        sessionStorage[user_id] = {
+            'first_name': None
+        }
+        return
+    if sessionStorage[user_id]['first_name'] is None:
+        first_name = get_first_name(req)
+        if first_name is None:
+            res['response']['text'] = \
+                'Не расслышала имя. Повтори, пожалуйста, уважаемый временно НОУНЕЙМ !'
+        else:
+            sessionStorage[user_id]['first_name'] = first_name
+            res['response'][
+                'text'] = 'Приятно познакомиться, ' + first_name.title()\
+                          + '. Я - Алиса. Я могу всё! А ты нет наверное... Но я тебя буду учить. Садись за парту. Я буду показывать спутниковый снимок объекта с меткой над ним. Это трудно, уж поверь ! Но не для меня, конечно. Тебе остаётся самую малость - назвать этот объект. Сможешь ?'
+
+    elif ((req['request']['original_utterance'] == 'Да' or
+          req['request']['original_utterance'] == 'Ещё' or
+          req['request']['original_utterance'] == 'Продолжаем')
+          and len(cities) != 0):
+        res['response']['card'] = {}
+        res['response']['card']['type'] = 'BigImage'
+        res['response']['card']['title'] = 'Вот например:'
+        flag = random.choice(list(cities.keys()))
+        res['response']['card']['image_id'] = cities[flag]
+        del cities[flag]
+
+    elif req['request']['original_utterance'] in cities:
+        city = req['request']['original_utterance']
+        if city == flag:
+            correct += 1
+            res['response']['text'] = 'Правильно !!! Ещё ?'
+        else:
+            incorrect += 1
+            res['response']['text'] = 'Ошибочка вышла ! Ещё ?'
+
+    elif req['request']['original_utterance'] == 'Сдаюсь !':
+        incorrect += len(cities)
+        res['response']['text'] = 'Чего так быстро сдулся ?! Позор тебе ! Количество правильных ответов: ' + str(correct) + '. Количество неправильных и неотвеченных: ' + str(incorrect)
+
+    elif len(cities) == 0:
+        res['response']['text'] = 'Я в отличие от тебя могу всё но увы на пока что у меня вопросы кончились ! Количество правильных ответов: ' + str(correct) + '. Количество неправильных: ' + str(incorrect)
+        
+    else:
+        res['response']['text'] = 'Я вас не понимаю, скажите ещё раз.Чтобы продолжить игру скажите "Да", "Ещё" или "Продолжаем"'
+
+def get_cities(req):
+    cities = []
+    for entity in req['request']['nlu']['entities']:
+        if entity['type'] == 'YANDEX.GEO':
+            if 'city' in entity['value']:
+                cities.append(entity['value']['city'])
+    return cities
+
+def get_first_name(req):
+    for entity in req['request']['nlu']['entities']:
+        if entity['type'] == 'YANDEX.FIO':
+            return entity['value'].get('first_name', None)
+
+if __name__ == '__main__':
+    app.run()
