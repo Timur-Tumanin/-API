@@ -1,3 +1,4 @@
+from flask import Flask, request
 import logging
 import json
 import random
@@ -10,7 +11,6 @@ logging.basicConfig(level=logging.INFO, filename='app.log',
 flag = ''
 correct = 0
 incorrect = 0
-'''
 cities = {
     'байкал': [
         '965417/06bac1a2fe82534719a3'
@@ -52,19 +52,6 @@ cities = {
         '1652229/499a2798364f2dbd9f8c'
     ]
 }
-'''
-cities = {
-    'лондон': [
-        '1540737/daa6e420d33102bf6947'
-    ],
-    'нью-йорк': [
-        '1652229/728d5c86707054d4745f'
-    ],
-    'париж': [
-        '1652229/f77136c2364eb90a3ea8'
-    ]
-}
-
 sessionStorage = {}
 
 @app.route('/post', methods=['POST'])
@@ -103,7 +90,17 @@ def handle_dialog(res, req):
             sessionStorage[user_id]['first_name'] = first_name
             res['response'][
                 'text'] = 'Приятно познакомиться, ' + first_name.title()\
-                          + '. Я - Алиса. Я могу всё! А ты нет наверное... Но я тебя буду учить. Садись за парту. Я буду показывать спутниковый снимок объекта с меткой над ним. Это трудно, уж поверь ! Но не для меня, конечно. Тебе остаётся самую малость - назвать этот объект. Сможешь ?'
+                          + '. Я - Алиса. Я могу всё! А ты нет наверное...\
+                            Но я тебя буду учить. Садись за парту. Я буду \
+                            показывать спутниковый снимок объекта с меткой над ним. \
+                            Это трудно, уж поверь ! Но не для меня, конечно. \
+                            Тебе остаётся самую малость - назвать этот объект. Сможешь ?\
+                            Чтобы попросить задания скажи мне "Да", "Ещё" или "Продолжаем"\
+                            Запомни : никакие другие слова не помогут !\
+                            Чтобы сдаться просто крикни изо всех сил "Сдаюсь !" и напиши\
+                            мне об этом ! Чтобы запросить гуманитарную помощь\
+                            произнеси заклинание "Помощь" или "Помоги" !\
+                            Я полагаю, что всё просто и понятно !'
 
     elif ((req['request']['original_utterance'] == 'Да' or
           req['request']['original_utterance'] == 'Ещё' or
@@ -111,12 +108,31 @@ def handle_dialog(res, req):
           and len(cities) != 0):
         res['response']['card'] = {}
         res['response']['card']['type'] = 'BigImage'
-        res['response']['card']['title'] = 'Вот например:'
+        res['response']['card']['title'] = 'Вот тебе например:'
         flag = random.choice(list(cities.keys()))
-        res['response']['card']['image_id'] = cities[flag]
-        del cities[flag]
+        res['response']['card']['image_id'] = random.choice(cities[flag])
+        res['response']['text'] = 'Я угадал!'
 
-    elif req['request']['original_utterance'] in cities:
+    elif req['request']['original_utterance'] == 'Сдаюсь !':
+        incorrect += len(cities)
+        res['response']['text'] = 'Чего так быстро сдулся ?! Позор тебе !\
+                                    Количество правильных ответов: ' + str(correct)\
+                                    + '!!! Количество неправильных и неотвеченных: '\
+                                    + str(incorrect) + '!!!'
+
+    elif len(cities) == 0:
+        res['response']['text'] = 'Я в отличие от тебя могу всё но увы на пока что \
+                                    у меня вопросы кончились ! Количество правильных\
+                                    ответов: ' + str(correct) + '!!! Количество \
+                                    неправильных: ' + str(incorrect) + '!!!'
+        
+    elif req['request']['original_utterance'] == 'Помощь' or req['request']['original_utterance'] == 'Помоги':
+        res['response']['text'] = 'Я вас не понимаю, скажите ещё раз.Чтобы продолжить\
+                                    игру скажите "Да", "Ещё" или "Продолжаем". Чтобы\
+                                    напротив признать своё поражение скажите "Сдаюсь !"\
+                                    , ясно ?! Думаю да. Всё. Помогла.'
+
+    else:
         city = req['request']['original_utterance']
         if city == flag:
             correct += 1
@@ -124,16 +140,7 @@ def handle_dialog(res, req):
         else:
             incorrect += 1
             res['response']['text'] = 'Ошибочка вышла ! Ещё ?'
-
-    elif req['request']['original_utterance'] == 'Сдаюсь !':
-        incorrect += len(cities)
-        res['response']['text'] = 'Чего так быстро сдулся ?! Позор тебе ! Количество правильных ответов: ' + str(correct) + '. Количество неправильных и неотвеченных: ' + str(incorrect)
-
-    elif len(cities) == 0:
-        res['response']['text'] = 'Я в отличие от тебя могу всё но увы на пока что у меня вопросы кончились ! Количество правильных ответов: ' + str(correct) + '. Количество неправильных: ' + str(incorrect)
-        
-    else:
-        res['response']['text'] = 'Я вас не понимаю, скажите ещё раз.Чтобы продолжить игру скажите "Да", "Ещё" или "Продолжаем"'
+        del cities[flag]
 
 def get_cities(req):
     cities = []
